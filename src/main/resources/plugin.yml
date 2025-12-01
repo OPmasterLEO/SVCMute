@@ -7,5 +7,21 @@ softdepend:
   - Essentials
   - LiteBans
   - AdvancedBan
+  - AdvancedBanX
+  - PlaceholderAPI
 depend:
   - voicechat
+commands:
+  adminjoin:
+    permission: svca.join
+    aliases:
+      - svcjoin
+  broadcastvoice:
+    permission: svca.broadcast
+permissions:
+  svca.*:
+    description: All permissions
+    default: op
+    children:
+      svca.join: true
+      svca.broadcast: true

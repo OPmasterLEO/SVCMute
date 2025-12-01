@@ -1,7 +1,9 @@
 package net.envexus.svcmute.integrations;
 
+import net.envexus.svcmute.SVCMute;
 import net.envexus.svcmute.integrations.advancedbans.AdvancedBansMuteChecker;
 import net.envexus.svcmute.integrations.essentials.EssentialsMuteChecker;
+import net.envexus.svcmute.integrations.advancedbanx.AdvancedBanXMuteChecker;
 import net.envexus.svcmute.integrations.litebans.LiteBansMuteChecker;
 import net.envexus.svcmute.integrations.svcmute.SQLiteMuteChecker;
 import net.envexus.svcmute.util.SQLiteHelper;
@@ -33,7 +35,10 @@ public class IntegrationManager {
         Plugin advancedBansPlugin = Bukkit.getPluginManager().getPlugin("AdvancedBan");
         boolean isAdvancedBanEnabled = advancedBansPlugin != null && advancedBansPlugin.isEnabled();
 
-        if (!isLiteBansEnabled && !isAdvancedBanEnabled) {
+        Plugin advancedBanXPlugin = Bukkit.getPluginManager().getPlugin("AdvancedBanX");
+        boolean isAdvancedBanXEnabled = advancedBanXPlugin != null && advancedBanXPlugin.isEnabled();
+
+        if (!isLiteBansEnabled && !isAdvancedBanEnabled && !isAdvancedBanXEnabled) {
             Plugin essentialsPlugin = Bukkit.getPluginManager().getPlugin("Essentials");
             if (essentialsPlugin != null && essentialsPlugin.isEnabled()) {
                 muteCheckers.add(new EssentialsMuteChecker(essentialsPlugin));
@@ -46,6 +51,10 @@ public class IntegrationManager {
 
         if (isAdvancedBanEnabled) {
             muteCheckers.add(new AdvancedBansMuteChecker(advancedBansPlugin));
+        }
+
+        if (isAdvancedBanXEnabled) {
+            muteCheckers.add(new AdvancedBanXMuteChecker(advancedBanXPlugin));
         }
 
         muteCheckers.add(new SQLiteMuteChecker(sqliteHelper));
@@ -93,16 +102,33 @@ public class IntegrationManager {
         mutedPlayers.removeIf(mutedPlayer -> mutedPlayer.getPlayerUUID().equals(playerUUID));
     }
 
-    public String getRemainingTime(Player player) {
-        UUID playerUUID = player.getUniqueId();
-        Long storedUnmuteTime = sqliteHelper.getUnmuteTime(playerUUID.toString());
-        if (storedUnmuteTime != null) {
+    public long getRemainingMilliseconds(Player player) {
+        var maxMuteTimestamp = muteCheckers.stream()
+                .mapToLong(checker -> checker.getUnmuteTime(player))
+                .max();
+
+        if (maxMuteTimestamp.isEmpty()) {
+            return -1;
+        }
+
+        var storedUnmuteTime = maxMuteTimestamp.getAsLong();
+        if (storedUnmuteTime != -1) {
             long remainingTime = storedUnmuteTime - System.currentTimeMillis();
-            if (remainingTime > 0) {
-                return formatTime(remainingTime);
+            if (remainingTime >= 0) {
+                return remainingTime;
             }
         }
-        return null;
+        return -1;
+    }
+
+    public String getRemainingTime(Player player) {
+        var ms = getRemainingMilliseconds(player);
+
+        if (ms < 0) {
+            return "0s";
+        }
+
+        return formatTime(ms);
     }
 
     private String formatTime(long remainingTime) {
