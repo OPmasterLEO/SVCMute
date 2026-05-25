@@ -6,10 +6,10 @@ import net.envexus.svcmute.integrations.advancedbanx.AdvancedBanXMuteChecker;
 import net.envexus.svcmute.integrations.essentials.EssentialsMuteChecker;
 import net.envexus.svcmute.integrations.litebans.LiteBansMuteChecker;
 import net.envexus.svcmute.util.SQLiteHelper;
+import net.envexus.svcmute.util.SchedulerBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,13 +25,13 @@ public class IntegrationManager {
     private final Map<UUID, Long> mutedPlayers = new ConcurrentHashMap<>();
     private final Map<UUID, CachedMuteState> muteStateCache = new ConcurrentHashMap<>();
     private final SQLiteHelper sqliteHelper;
-    private final BukkitTask cleanupTask;
+    private final SchedulerBridge.TaskHandle cleanupTask;
 
     public IntegrationManager(SVCMute plugin, SQLiteHelper sqliteHelper) {
         this.sqliteHelper = sqliteHelper;
         registerPlugins();
         initializeStoredMutes();
-        this.cleanupTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::cleanupExpiredState, CACHE_CLEANUP_PERIOD_TICKS, CACHE_CLEANUP_PERIOD_TICKS);
+        this.cleanupTask = SchedulerBridge.runAsyncTimer(plugin, this::cleanupExpiredState, CACHE_CLEANUP_PERIOD_TICKS, CACHE_CLEANUP_PERIOD_TICKS);
     }
 
     private void registerPlugins() {

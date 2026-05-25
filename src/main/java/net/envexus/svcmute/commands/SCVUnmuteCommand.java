@@ -5,6 +5,7 @@ import co.aikar.commands.annotation.*;
 import net.envexus.svcmute.SVCMute;
 import net.envexus.svcmute.integrations.IntegrationManager;
 import net.envexus.svcmute.util.SQLiteHelper;
+import net.envexus.svcmute.util.SchedulerBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -45,6 +46,6 @@ public class SCVUnmuteCommand extends BaseCommand {
 
         integrationManager.removeMutedPlayer(playerUUID);
         sender.sendMessage(playerName + " has been unmuted.");
-        Bukkit.getScheduler().runTaskAsynchronously(this.plugin, () -> db.removeMute(playerUUID.toString()));
+        SchedulerBridge.runAsync(this.plugin, () -> db.removeMute(playerUUID.toString()));
     }
 }

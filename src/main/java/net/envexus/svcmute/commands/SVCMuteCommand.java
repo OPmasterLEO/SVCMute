@@ -9,6 +9,7 @@ import co.aikar.commands.annotation.Syntax;
 import net.envexus.svcmute.SVCMute;
 import net.envexus.svcmute.integrations.IntegrationManager;
 import net.envexus.svcmute.util.SQLiteHelper;
+import net.envexus.svcmute.util.SchedulerBridge;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -52,7 +53,7 @@ public class SVCMuteCommand extends BaseCommand {
         integrationManager.addMutedPlayer(playerUUID, unmuteTime);
         sender.sendMessage(playerName + " has been muted for " + timeStr + ".");
 
-        Bukkit.getScheduler().runTaskAsynchronously(this.plugin, () -> db.addMute(playerUUID.toString(), unmuteTime));
+        SchedulerBridge.runAsync(this.plugin, () -> db.addMute(playerUUID.toString(), unmuteTime));
     }
 
     private long parseTime(String timeStr) {
