@@ -2,6 +2,7 @@ package net.envexus.svcmute.commands;
 
 import co.aikar.commands.BaseCommand;
 import co.aikar.commands.annotation.*;
+import net.envexus.svcmute.SVCMute;
 import net.envexus.svcmute.integrations.IntegrationManager;
 import net.envexus.svcmute.util.SQLiteHelper;
 import org.bukkit.Bukkit;
@@ -16,10 +17,12 @@ import java.util.UUID;
 public class SCVUnmuteCommand extends BaseCommand {
 
     private final SQLiteHelper db;
+    private final SVCMute plugin;
     private final IntegrationManager integrationManager;
 
-    public SCVUnmuteCommand(SQLiteHelper db, IntegrationManager integrationManager) {
+    public SCVUnmuteCommand(SQLiteHelper db, SVCMute plugin, IntegrationManager integrationManager) {
         this.db = db;
+        this.plugin = plugin;
         this.integrationManager = integrationManager;
     }
 
@@ -35,13 +38,13 @@ public class SCVUnmuteCommand extends BaseCommand {
         }
 
         UUID playerUUID = player.getUniqueId();
-        if (!db.isMuted(playerUUID.toString())) {
+        if (!integrationManager.hasMutedPlayer(playerUUID)) {
             sender.sendMessage(playerName + " is not muted.");
             return;
         }
 
-        sender.sendMessage(playerName + " has been unmuted.");
-        db.removeMute(playerUUID.toString());
         integrationManager.removeMutedPlayer(playerUUID);
+        sender.sendMessage(playerName + " has been unmuted.");
+        Bukkit.getScheduler().runTaskAsynchronously(this.plugin, () -> db.removeMute(playerUUID.toString()));
     }
 }

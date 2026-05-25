@@ -17,8 +17,8 @@ public class SVCPlugin implements VoicechatPlugin {
 
 	@Override
 	public void initialize(VoicechatApi api) {
-		if (api instanceof VoicechatServerApi) {
-			this.voicechatApi = (VoicechatServerApi) api;
+		if (api instanceof VoicechatServerApi serverApi) {
+			this.voicechatApi = serverApi;
 			LOGGER.info("SVCPlugin initialized.");
 		} else {
 			LOGGER.severe("SimpleVoiceChat API is not available.");

@@ -4,8 +4,6 @@ import net.envexus.svcmute.integrations.MuteChecker;
 import net.envexus.svcmute.util.SQLiteHelper;
 import org.bukkit.entity.Player;
 
-import java.util.UUID;
-
 public class SQLiteMuteChecker implements MuteChecker {
     private final SQLiteHelper db;
 

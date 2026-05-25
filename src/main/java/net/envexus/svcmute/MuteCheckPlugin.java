@@ -7,12 +7,12 @@ import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent;
 import net.envexus.svcmute.configuration.ConfigurationManager;
 import net.envexus.svcmute.integrations.IntegrationManager;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextReplacementConfig;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.entity.Player;
 
-import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MuteCheckPlugin implements VoicechatPlugin {
 
@@ -21,7 +21,7 @@ public class MuteCheckPlugin implements VoicechatPlugin {
     private final ConfigurationManager configurationManager;
 
     public MuteCheckPlugin(IntegrationManager integrationManager, ConfigurationManager messagesManager) {
-        this.notifiedPlayers = new HashSet<>();
+        this.notifiedPlayers = ConcurrentHashMap.newKeySet();
         this.integrationManager = integrationManager;
         this.configurationManager = messagesManager;
     }
@@ -54,20 +54,31 @@ public class MuteCheckPlugin implements VoicechatPlugin {
         registration.registerEvent(MicrophonePacketEvent.class, this::onMicrophone);
     }
 
+    public void clearPlayerState(UUID playerUUID) {
+        notifiedPlayers.remove(playerUUID);
+    }
+
+    public void clearAllState() {
+        notifiedPlayers.clear();
+    }
+
     /**
      * This method is called whenever a player sends audio to the server via the voice chat.
      *
      * @param event the microphone packet event
      */
     private void onMicrophone(MicrophonePacketEvent event) {
-        if (event.getSenderConnection() == null) {
+        var senderConnection = event.getSenderConnection();
+        if (senderConnection == null || senderConnection.getPlayer() == null) {
             return;
         }
-        if (!(event.getSenderConnection().getPlayer().getPlayer() instanceof Player player)) {
+        Object senderPlayer = senderConnection.getPlayer().getPlayer();
+        if (!(senderPlayer instanceof Player player)) {
             return;
         }
 
-        if (integrationManager.isPlayerMuted(player)) {
+        long remainingMilliseconds = integrationManager.getRemainingMilliseconds(player);
+        if (remainingMilliseconds > 0) {
             event.cancel();
 
             String remainingTime = integrationManager.getRemainingTime(player);
@@ -76,17 +87,17 @@ public class MuteCheckPlugin implements VoicechatPlugin {
                 remainingTime = "Unknown";
             }
 
+            Component mutedMessage = configurationManager.getLocaleString(
+                    "actionbar.muted",
+                    Placeholder.parsed("remaining_time", remainingTime)
+            );
+
             if (configurationManager.getConfig().getBoolean("actionbar", false)) {
-                Component raw = configurationManager.getLocaleString("actionbar.muted");
-                Component actionBarMessage = raw.replaceText(TextReplacementConfig.builder().match("%remaining_time%").replacement(remainingTime).build());
-                player.sendActionBar(actionBarMessage);
+                player.sendActionBar(mutedMessage);
             }
 
-            if (configurationManager.getConfig().getBoolean("message", false) && !notifiedPlayers.contains(player.getUniqueId())) {
-                Component raw = configurationManager.getLocaleString("actionbar.muted");
-                Component chatMessage = raw.replaceText(TextReplacementConfig.builder().match("%remaining_time%").replacement(remainingTime).build());
-                player.sendMessage(chatMessage);
-                notifiedPlayers.add(player.getUniqueId());
+            if (configurationManager.getConfig().getBoolean("message", false) && notifiedPlayers.add(player.getUniqueId())) {
+                player.sendMessage(mutedMessage);
             }
         } else {
             notifiedPlayers.remove(player.getUniqueId());

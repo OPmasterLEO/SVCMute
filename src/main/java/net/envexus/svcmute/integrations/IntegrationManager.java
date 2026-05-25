@@ -2,32 +2,38 @@ package net.envexus.svcmute.integrations;
 
 import net.envexus.svcmute.SVCMute;
 import net.envexus.svcmute.integrations.advancedbans.AdvancedBansMuteChecker;
-import net.envexus.svcmute.integrations.essentials.EssentialsMuteChecker;
 import net.envexus.svcmute.integrations.advancedbanx.AdvancedBanXMuteChecker;
+import net.envexus.svcmute.integrations.essentials.EssentialsMuteChecker;
 import net.envexus.svcmute.integrations.litebans.LiteBansMuteChecker;
-import net.envexus.svcmute.integrations.svcmute.SQLiteMuteChecker;
 import net.envexus.svcmute.util.SQLiteHelper;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class IntegrationManager {
-    private final List<MuteChecker> muteCheckers = new ArrayList<>();
-    private final List<MutedPlayer> mutedPlayers = new ArrayList<>(); // List to track muted players
-    private final SQLiteHelper sqliteHelper;
+    private static final long CHECK_CACHE_TTL_MS = 1000L;
+    private static final long CACHE_CLEANUP_PERIOD_TICKS = 20L * 60L;
 
-    public IntegrationManager(SQLiteHelper sqliteHelper) {
+    private final List<MuteChecker> muteCheckers = new ArrayList<>();
+    private final Map<UUID, Long> mutedPlayers = new ConcurrentHashMap<>();
+    private final Map<UUID, CachedMuteState> muteStateCache = new ConcurrentHashMap<>();
+    private final SQLiteHelper sqliteHelper;
+    private final BukkitTask cleanupTask;
+
+    public IntegrationManager(SVCMute plugin, SQLiteHelper sqliteHelper) {
         this.sqliteHelper = sqliteHelper;
         registerPlugins();
+        initializeStoredMutes();
+        this.cleanupTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::cleanupExpiredState, CACHE_CLEANUP_PERIOD_TICKS, CACHE_CLEANUP_PERIOD_TICKS);
     }
 
-    /**
-     * Register all supported mute-management plugins.
-     */
     private void registerPlugins() {
         Plugin liteBansPlugin = Bukkit.getPluginManager().getPlugin("LiteBans");
         boolean isLiteBansEnabled = liteBansPlugin != null && liteBansPlugin.isEnabled();
@@ -42,6 +48,7 @@ public class IntegrationManager {
             Plugin essentialsPlugin = Bukkit.getPluginManager().getPlugin("Essentials");
             if (essentialsPlugin != null && essentialsPlugin.isEnabled()) {
                 muteCheckers.add(new EssentialsMuteChecker(essentialsPlugin));
+                SVCMute.LOGGER.info("Adding Essentials Mute Checker");
             }
         }
 
@@ -56,67 +63,51 @@ public class IntegrationManager {
         if (isAdvancedBanXEnabled) {
             muteCheckers.add(new AdvancedBanXMuteChecker(advancedBanXPlugin));
         }
-
-        muteCheckers.add(new SQLiteMuteChecker(sqliteHelper));
     }
 
-    /**
-     * Check if the player is muted.
-     *
-     * @param player the player to check
-     * @return true if the player is muted, false otherwise
-     */
+    private void initializeStoredMutes() {
+        long now = System.currentTimeMillis();
+        sqliteHelper.removeExpiredMutes(now);
+        mutedPlayers.putAll(sqliteHelper.getActiveMutes(now));
+    }
+
     public boolean isPlayerMuted(Player player) {
-        UUID playerUUID = player.getUniqueId();
-        // Check the list of manually muted players
-        for (MutedPlayer mutedPlayer : mutedPlayers) {
-            if (mutedPlayer.getPlayerUUID().equals(playerUUID) && mutedPlayer.getUnmuteTime() > System.currentTimeMillis()) {
-                return true;
-            }
-        }
-        // Also check through all registered mute checkers
-        for (MuteChecker checker : muteCheckers) {
-            if (checker.isPlayerMuted(player)) {
-                return true;
-            }
-        }
-        return false;
+        long now = System.currentTimeMillis();
+        long maxUnmuteTimestamp = getMaxUnmuteTimestamp(player, now);
+        return maxUnmuteTimestamp > now;
     }
 
-    /**
-     * Add a player to the list of muted players.
-     *
-     * @param playerUUID the UUID of the player
-     * @param unmuteTime the time when the player should be unmuted
-     */
     public void addMutedPlayer(UUID playerUUID, long unmuteTime) {
-        mutedPlayers.add(new MutedPlayer(playerUUID, unmuteTime));
+        mutedPlayers.put(playerUUID, unmuteTime);
+        muteStateCache.remove(playerUUID);
     }
 
-    /**
-     * Remove a player from the list of muted players.
-     *
-     * @param playerUUID the UUID of the player
-     */
     public void removeMutedPlayer(UUID playerUUID) {
-        mutedPlayers.removeIf(mutedPlayer -> mutedPlayer.getPlayerUUID().equals(playerUUID));
+        mutedPlayers.remove(playerUUID);
+        muteStateCache.remove(playerUUID);
+    }
+
+    public boolean hasMutedPlayer(UUID playerUUID) {
+        long now = System.currentTimeMillis();
+        return getManualUnmuteTime(playerUUID, now) > now;
+    }
+
+    public void clearPlayerCaches(UUID playerUUID) {
+        muteStateCache.remove(playerUUID);
+    }
+
+    public void shutdown() {
+        cleanupTask.cancel();
+        mutedPlayers.clear();
+        muteStateCache.clear();
     }
 
     public long getRemainingMilliseconds(Player player) {
-        var maxMuteTimestamp = muteCheckers.stream()
-                .mapToLong(checker -> checker.getUnmuteTime(player))
-                .max();
-
-        if (maxMuteTimestamp.isEmpty()) {
-            return -1;
-        }
-
-        var storedUnmuteTime = maxMuteTimestamp.getAsLong();
-        if (storedUnmuteTime != -1) {
-            long remainingTime = storedUnmuteTime - System.currentTimeMillis();
-            if (remainingTime >= 0) {
-                return remainingTime;
-            }
+        long now = System.currentTimeMillis();
+        long unmuteTimestamp = getMaxUnmuteTimestamp(player, now);
+        long remainingTime = unmuteTimestamp - now;
+        if (remainingTime >= 0) {
+            return remainingTime;
         }
         return -1;
     }
@@ -148,22 +139,57 @@ public class IntegrationManager {
         }
     }
 
-    // Inner class to represent a muted player
-    private static class MutedPlayer {
-        private final UUID playerUUID;
+    private long getMaxUnmuteTimestamp(Player player, long now) {
+        UUID playerUUID = player.getUniqueId();
+        long manualUnmute = getManualUnmuteTime(playerUUID, now);
+
+        CachedMuteState cachedState = muteStateCache.get(playerUUID);
+        if (cachedState != null && cachedState.cacheExpiresAt > now) {
+            return Math.max(manualUnmute, cachedState.unmuteTime);
+        }
+        if (cachedState != null) {
+            muteStateCache.remove(playerUUID, cachedState);
+        }
+
+        long externalUnmute = -1;
+        for (MuteChecker checker : muteCheckers) {
+            long checkerUnmute = checker.getUnmuteTime(player);
+            if (checkerUnmute > now) {
+                externalUnmute = Math.max(externalUnmute, checkerUnmute);
+            }
+        }
+
+        long mergedUnmute = Math.max(manualUnmute, externalUnmute);
+        muteStateCache.put(playerUUID, new CachedMuteState(mergedUnmute, now + CHECK_CACHE_TTL_MS));
+        return mergedUnmute;
+    }
+
+    private void cleanupExpiredState() {
+        long now = System.currentTimeMillis();
+        sqliteHelper.removeExpiredMutes(now);
+        mutedPlayers.entrySet().removeIf(entry -> entry.getValue() <= now);
+        muteStateCache.entrySet().removeIf(entry -> entry.getValue().cacheExpiresAt <= now);
+    }
+
+    private long getManualUnmuteTime(UUID playerUUID, long now) {
+        Long manualUnmute = mutedPlayers.get(playerUUID);
+        if (manualUnmute == null) {
+            return -1;
+        }
+        if (manualUnmute <= now) {
+            mutedPlayers.remove(playerUUID, manualUnmute);
+            return -1;
+        }
+        return manualUnmute;
+    }
+
+    private static final class CachedMuteState {
         private final long unmuteTime;
+        private final long cacheExpiresAt;
 
-        public MutedPlayer(UUID playerUUID, long unmuteTime) {
-            this.playerUUID = playerUUID;
+        private CachedMuteState(long unmuteTime, long cacheExpiresAt) {
             this.unmuteTime = unmuteTime;
-        }
-
-        public UUID getPlayerUUID() {
-            return playerUUID;
-        }
-
-        public long getUnmuteTime() {
-            return unmuteTime;
+            this.cacheExpiresAt = cacheExpiresAt;
         }
     }
 }

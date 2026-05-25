@@ -10,6 +10,9 @@ import net.envexus.svcmute.integrations.svcadmin.SimpleVoiceChatAdmin;
 import net.envexus.svcmute.placeholders.SVCMutePlaceholderExpansion;
 import net.envexus.svcmute.integrations.svcadmin.SVCPlugin;
 import net.envexus.svcmute.util.SQLiteHelper;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.logging.Logger;
@@ -22,6 +25,7 @@ public final class SVCMute extends JavaPlugin {
     private MuteCheckPlugin voicechatPlugin;
     private SQLiteHelper sqliteHelper;
     private IntegrationManager integrationManager;
+    private ConfigurationManager configurationManager;
 
     // new fields
     private SVCPlugin svcPlugin;
@@ -29,13 +33,13 @@ public final class SVCMute extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        ConfigurationManager messageManager = new ConfigurationManager(this);
+        configurationManager = new ConfigurationManager(this);
 
         // Initialize SQLiteHelper
         sqliteHelper = new SQLiteHelper(this);
 
         // Initialize IntegrationManager with SQLiteHelper
-        integrationManager = new IntegrationManager(sqliteHelper);
+        integrationManager = new IntegrationManager(this, sqliteHelper);
 
         // Register voice chat plugin(s)
         BukkitVoicechatService service = getServer().getServicesManager().load(BukkitVoicechatService.class);
@@ -45,7 +49,7 @@ public final class SVCMute extends JavaPlugin {
             service.registerPlugin(svcPlugin);
 
             // Register mute-check plugin
-            voicechatPlugin = new MuteCheckPlugin(integrationManager, messageManager);
+            voicechatPlugin = new MuteCheckPlugin(integrationManager, configurationManager);
             service.registerPlugin(voicechatPlugin);
 
             // Create and register the admin helper which will register broadcast plugin and command executors
@@ -60,17 +64,34 @@ public final class SVCMute extends JavaPlugin {
         if (this.getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
             new SVCMutePlaceholderExpansion(integrationManager).register();
         }
-        
+
+        getServer().getPluginManager().registerEvents(new Listener() {
+            @EventHandler
+            public void onQuit(PlayerQuitEvent event) {
+                integrationManager.clearPlayerCaches(event.getPlayer().getUniqueId());
+                if (voicechatPlugin != null) {
+                    voicechatPlugin.clearPlayerState(event.getPlayer().getUniqueId());
+                }
+            }
+        }, this);
+
         // Initialize ACF Command Manager
         BukkitCommandManager manager = new BukkitCommandManager(this);
 
         // Register commands (plugin commands remain handled by ACF or Bukkit executors)
         manager.registerCommand(new SVCMuteCommand(sqliteHelper, this, integrationManager));
-        manager.registerCommand(new SCVUnmuteCommand(sqliteHelper, integrationManager));
+        manager.registerCommand(new SCVUnmuteCommand(sqliteHelper, this, integrationManager));
     }
 
     @Override
     public void onDisable() {
+        if (voicechatPlugin != null) {
+            voicechatPlugin.clearAllState();
+        }
+        if (integrationManager != null) {
+            integrationManager.shutdown();
+        }
+
         // Unregister voicechat-related plugins from the ServicesManager
         if (voicechatPlugin != null) {
             getServer().getServicesManager().unregister(voicechatPlugin);

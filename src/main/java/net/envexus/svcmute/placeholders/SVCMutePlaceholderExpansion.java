@@ -1,12 +1,13 @@
 package net.envexus.svcmute.placeholders;
 
-import me.clip.placeholderapi.expansion.PlaceholderExpansion;
-import net.envexus.svcmute.integrations.IntegrationManager;
+import java.util.List;
+
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
+import me.clip.placeholderapi.expansion.PlaceholderExpansion;
+import net.envexus.svcmute.integrations.IntegrationManager;
 
 public class SVCMutePlaceholderExpansion extends PlaceholderExpansion {
     private final IntegrationManager integrationManager;

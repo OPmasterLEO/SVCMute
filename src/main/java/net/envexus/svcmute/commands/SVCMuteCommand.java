@@ -6,14 +6,12 @@ import co.aikar.commands.annotation.CommandPermission;
 import co.aikar.commands.annotation.Default;
 import co.aikar.commands.annotation.Description;
 import co.aikar.commands.annotation.Syntax;
-import com.github.Anon8281.universalScheduler.scheduling.schedulers.TaskScheduler;
 import net.envexus.svcmute.SVCMute;
 import net.envexus.svcmute.integrations.IntegrationManager;
 import net.envexus.svcmute.util.SQLiteHelper;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import com.github.Anon8281.universalScheduler.UniversalScheduler;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -51,47 +49,26 @@ public class SVCMuteCommand extends BaseCommand {
         UUID playerUUID = player.getUniqueId();
         long unmuteTime = System.currentTimeMillis() + muteDurationMillis;
 
-        db.addMute(playerUUID.toString(), unmuteTime);
+        integrationManager.addMutedPlayer(playerUUID, unmuteTime);
         sender.sendMessage(playerName + " has been muted for " + timeStr + ".");
 
-        integrationManager.addMutedPlayer(playerUUID, unmuteTime);
-
-        // Schedule unmute task
-        UniversalScheduler.getScheduler(this.plugin).runTaskLater(() -> {
-            Long storedUnmuteTime = db.getUnmuteTime(playerUUID.toString());
-            if (storedUnmuteTime != null && storedUnmuteTime <= System.currentTimeMillis()) {
-                db.removeMute(playerUUID.toString());
-                integrationManager.removeMutedPlayer(playerUUID);
-            }
-        }, muteDurationMillis / 50L); // Bukkit scheduler uses ticks, so divide by 50
+        Bukkit.getScheduler().runTaskAsynchronously(this.plugin, () -> db.addMute(playerUUID.toString(), unmuteTime));
     }
 
     private long parseTime(String timeStr) {
-        long durationMillis = -1;
         try {
             char unit = timeStr.charAt(timeStr.length() - 1);
             long amount = Long.parseLong(timeStr.substring(0, timeStr.length() - 1));
 
-            switch (unit) {
-                case 's':
-                    durationMillis = TimeUnit.SECONDS.toMillis(amount);
-                    break;
-                case 'm':
-                    durationMillis = TimeUnit.MINUTES.toMillis(amount);
-                    break;
-                case 'h':
-                    durationMillis = TimeUnit.HOURS.toMillis(amount);
-                    break;
-                case 'd':
-                    durationMillis = TimeUnit.DAYS.toMillis(amount);
-                    break;
-                default:
-                    return -1; // Invalid unit
-            }
+            return switch (unit) {
+                case 's' -> TimeUnit.SECONDS.toMillis(amount);
+                case 'm' -> TimeUnit.MINUTES.toMillis(amount);
+                case 'h' -> TimeUnit.HOURS.toMillis(amount);
+                case 'd' -> TimeUnit.DAYS.toMillis(amount);
+                default -> -1;
+            };
         } catch (NumberFormatException | StringIndexOutOfBoundsException e) {
-            return -1; // Invalid format
+            return -1;
         }
-
-        return durationMillis;
     }
 }

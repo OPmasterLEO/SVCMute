@@ -9,6 +9,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.util.Objects;
 
 public class ConfigurationManager {
 
@@ -20,13 +21,17 @@ public class ConfigurationManager {
     public ConfigurationManager(JavaPlugin plugin) {
         this.plugin = plugin;
         this.miniMessage = MiniMessage.miniMessage();
-        loadFiles();
+        reloadFiles();
     }
 
     /**
      * Reload configuration from files.
      */
     public void loadFiles() {
+        reloadFiles();
+    }
+
+    private void reloadFiles() {
         this.messagesConfig = loadConfiguration("locale.yml");
         this.pluginConfig = loadConfiguration("config.yml");
     }
@@ -54,9 +59,9 @@ public class ConfigurationManager {
      */
     public Component getLocaleString(String key, TagResolver... resolvers) {
         TagResolver[] combinedResolvers = new TagResolver[resolvers.length + 1];
-        combinedResolvers[0] = Placeholder.component("prefix", miniMessage.deserialize(messagesConfig.getString("prefix", "")));
+        combinedResolvers[0] = Placeholder.component("prefix", miniMessage.deserialize(Objects.requireNonNullElse(messagesConfig.getString("prefix"), "")));
         System.arraycopy(resolvers, 0, combinedResolvers, 1, resolvers.length);
-        return miniMessage.deserialize(messagesConfig.getString(key, "<red>Message not found for key: %s</red>".formatted(key)), combinedResolvers);
+        return miniMessage.deserialize(Objects.requireNonNullElse(messagesConfig.getString(key), "<red>Message not found for key: %s</red>".formatted(key)), combinedResolvers);
     }
 
     /**

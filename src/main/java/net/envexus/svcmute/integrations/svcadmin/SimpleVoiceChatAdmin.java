@@ -5,26 +5,20 @@ import de.maxhenkel.voicechat.api.Group;
 import de.maxhenkel.voicechat.api.VoicechatConnection;
 import de.maxhenkel.voicechat.api.VoicechatServerApi;
 import de.maxhenkel.voicechat.api.Group.Type;
-import java.util.Iterator;
-import javax.annotation.Nullable;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import net.envexus.svcmute.SVCMute;
+import java.util.logging.Logger;
 
 public final class SimpleVoiceChatAdmin implements CommandExecutor {
-   public static final Logger LOGGER = LogManager.getLogger("SimpleVoiceChatAdmin");
+   public static final Logger LOGGER = Logger.getLogger(SimpleVoiceChatAdmin.class.getName());
 
    private final SVCMute plugin;
    private final SVCPlugin svcPlugin;
-   @Nullable
    private BroadcastVoicechatPlugin voicechatPlugin;
-   @Nullable
-   private VoicechatServerApi voicechatApi;
 
    public SimpleVoiceChatAdmin(SVCMute plugin, SVCPlugin svcPlugin) {
       this.plugin = plugin;
@@ -33,7 +27,6 @@ public final class SimpleVoiceChatAdmin implements CommandExecutor {
 
    // Called from SVCMute when the BukkitVoicechatService is available
    public void register(BukkitVoicechatService service) {
-      this.voicechatApi = svcPlugin.getVoicechatApi();
       this.voicechatPlugin = new BroadcastVoicechatPlugin();
       service.registerPlugin(this.voicechatPlugin);
 
@@ -53,8 +46,7 @@ public final class SimpleVoiceChatAdmin implements CommandExecutor {
       if (command.getName().equalsIgnoreCase("broadcastvoice")) {
          return this.handleCreateGroupCommand(sender);
       } else if (command.getName().equalsIgnoreCase("adminjoin")) {
-         if (sender instanceof Player) {
-            Player player = (Player)sender;
+         if (sender instanceof Player player) {
             if (player.hasPermission("svca.join")) {
                if (args.length > 0) {
                   String groupName = String.join(" ", args);
@@ -71,9 +63,7 @@ public final class SimpleVoiceChatAdmin implements CommandExecutor {
                         return true;
                      }
 
-                     Iterator<Group> it = api.getGroups().iterator();
-                     while(it.hasNext()) {
-                        Group group = it.next();
+                     for (Group group : api.getGroups()) {
                         if (group.getName().equals(groupName)) {
                            connection.setGroup(group);
                            player.sendMessage("§rYou joined group: §a" + groupName);
@@ -101,8 +91,7 @@ public final class SimpleVoiceChatAdmin implements CommandExecutor {
    }
 
    private boolean handleCreateGroupCommand(CommandSender sender) {
-      if (sender instanceof Player) {
-         Player player = (Player)sender;
+      if (sender instanceof Player player) {
          if (!player.hasPermission("svca.broadcast")) {
             player.sendMessage("§cYou don't have the permission for this.");
             return true;
@@ -114,6 +103,10 @@ public final class SimpleVoiceChatAdmin implements CommandExecutor {
             } else {
                Group group = api.groupBuilder().setPersistent(false).setName("broadcast").setPassword(this.plugin.getServer().getIp()).setType(Type.OPEN).build();
                VoicechatConnection connection = api.getConnectionOf(player.getUniqueId());
+               if (connection == null) {
+                  player.sendMessage("Connection error.");
+                  return true;
+               }
                connection.setGroup(group);
                player.sendMessage("§rJoined &aBroadcast §rgroup.");
                return true;

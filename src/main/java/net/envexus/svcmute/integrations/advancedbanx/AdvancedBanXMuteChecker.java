@@ -1,11 +1,12 @@
 package net.envexus.svcmute.integrations.advancedbanx;
 
-import net.hnt8.advancedban.manager.PunishmentManager;
-import net.hnt8.advancedban.utils.Punishment;
-import net.envexus.svcmute.integrations.MuteChecker;
-import net.hnt8.advancedban.manager.UUIDManager;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+
+import net.envexus.svcmute.integrations.MuteChecker;
+import net.hnt8.advancedban.manager.PunishmentManager;
+import net.hnt8.advancedban.manager.UUIDManager;
+import net.hnt8.advancedban.utils.Punishment;
 
 public class AdvancedBanXMuteChecker implements MuteChecker {
     private final UUIDManager uuidManager;
