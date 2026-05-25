@@ -14,6 +14,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.util.logging.Level;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -53,7 +54,13 @@ public class SVCMuteCommand extends BaseCommand {
         integrationManager.addMutedPlayer(playerUUID, unmuteTime);
         sender.sendMessage(playerName + " has been muted for " + timeStr + ".");
 
-        SchedulerBridge.runAsync(this.plugin, () -> db.addMute(playerUUID.toString(), unmuteTime));
+        SchedulerBridge.runAsync(this.plugin, () -> {
+            try {
+                db.addMute(playerUUID.toString(), unmuteTime);
+            } catch (RuntimeException exception) {
+                plugin.getLogger().log(Level.SEVERE, "Failed to persist mute for " + playerUUID, exception);
+            }
+        });
     }
 
     private long parseTime(String timeStr) {

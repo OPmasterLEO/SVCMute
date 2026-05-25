@@ -11,6 +11,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.UUID;
+import java.util.logging.Level;
 
 @CommandAlias("svcunmute")
 @CommandPermission("voicechat.svcunmute")
@@ -46,6 +47,12 @@ public class SCVUnmuteCommand extends BaseCommand {
 
         integrationManager.removeMutedPlayer(playerUUID);
         sender.sendMessage(playerName + " has been unmuted.");
-        SchedulerBridge.runAsync(this.plugin, () -> db.removeMute(playerUUID.toString()));
+        SchedulerBridge.runAsync(this.plugin, () -> {
+            try {
+                db.removeMute(playerUUID.toString());
+            } catch (RuntimeException exception) {
+                plugin.getLogger().log(Level.SEVERE, "Failed to persist unmute for " + playerUUID, exception);
+            }
+        });
     }
 }
