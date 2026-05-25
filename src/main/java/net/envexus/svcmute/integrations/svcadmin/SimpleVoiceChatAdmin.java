@@ -43,6 +43,10 @@ public final class SimpleVoiceChatAdmin implements CommandExecutor {
 
    @Override
    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+      if (sender == null) {
+         return true;
+      }
+
       if (command.getName().equalsIgnoreCase("broadcastvoice")) {
          return this.handleCreateGroupCommand(sender);
       } else if (command.getName().equalsIgnoreCase("adminjoin")) {
@@ -74,7 +78,7 @@ public final class SimpleVoiceChatAdmin implements CommandExecutor {
                      player.sendMessage("§rGroup §a" + groupName + " §rnot found.");
                   } catch (Exception e) {
                      player.sendMessage("Error on group join.");
-                     e.printStackTrace();
+                     LOGGER.log(java.util.logging.Level.SEVERE, "Failed to join voicechat group", e);
                   }
                } else {
                   player.sendMessage("Please provide a group name.");
@@ -91,6 +95,10 @@ public final class SimpleVoiceChatAdmin implements CommandExecutor {
    }
 
    private boolean handleCreateGroupCommand(CommandSender sender) {
+      if (sender == null) {
+         return true;
+      }
+
       if (sender instanceof Player player) {
          if (!player.hasPermission("svca.broadcast")) {
             player.sendMessage("§cYou don't have the permission for this.");
