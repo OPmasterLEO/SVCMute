@@ -1,7 +1,5 @@
 package net.envexus.svcmute.util;
 
-import net.envexus.svcmute.SVCMute;
-
 import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -12,6 +10,8 @@ import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
+import net.envexus.svcmute.SVCMute;
 
 public class SQLiteHelper {
     private final String url;

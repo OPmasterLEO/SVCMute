@@ -1,10 +1,10 @@
 package net.envexus.svcmute.integrations.svcadmin;
 
+import java.util.logging.Logger;
+
 import de.maxhenkel.voicechat.api.VoicechatApi;
 import de.maxhenkel.voicechat.api.VoicechatPlugin;
 import de.maxhenkel.voicechat.api.VoicechatServerApi;
-
-import java.util.logging.Logger;
 
 public class SVCPlugin implements VoicechatPlugin {
 	public static final Logger LOGGER = Logger.getLogger(SVCPlugin.class.getName());
